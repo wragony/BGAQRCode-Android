@@ -14,6 +14,12 @@
             <enum name="center" value="1" />
             <enum name="inside" value="2" />
         </attr>
+        <!-- 扫描框边角线的圆角半径，默认0 -->
+        <attr name="qrcv_borderCornerRadius" format="dimension|reference" />
+        <!-- 阴影圆角 -->
+        <attr name="qrcv_maskCornerRadius" format="dimension|reference" />
+        <!-- 阴影距离边框的位移 -->
+        <attr name="qrcv_maskPadding" format="dimension|reference" />
         <!-- 扫描框的宽度，默认值为200dp -->
         <attr name="qrcv_rectWidth" format="dimension|reference" />
         <!-- 条码扫样式描框的高度，默认值为140dp -->

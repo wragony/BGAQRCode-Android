@@ -6,11 +6,17 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.CornerPathEffect;
 import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.Xfermode;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.os.Build;
 import android.text.Layout;
 import android.text.StaticLayout;
 import android.text.TextPaint;
@@ -80,6 +86,15 @@ public class ScanBoxView extends View {
     private boolean mIsShowLocationPoint;
     private boolean mIsAutoZoom;
 
+    private int mBorderCornerRadius;
+    private int mMaskCornerRadius;
+
+    private Xfermode mXfermode;
+    private int mMaskPadding = 20;
+
+    private CornerPathEffect mCornerPathEffect;
+    private Path mCornerPath;
+
     private QRCodeView mQRCodeView;
 
     public ScanBoxView(Context context) {
@@ -90,6 +105,9 @@ public class ScanBoxView extends View {
         mCornerColor = Color.WHITE;
         mCornerLength = BGAQRCodeUtil.dp2px(context, 20);
         mCornerSize = BGAQRCodeUtil.dp2px(context, 3);
+        mBorderCornerRadius = BGAQRCodeUtil.dp2px(context, 3);
+        mMaskCornerRadius = BGAQRCodeUtil.dp2px(context, 3);
+        mMaskPadding = BGAQRCodeUtil.dp2px(context, 15);
         mScanLineSize = BGAQRCodeUtil.dp2px(context, 1);
         mScanLineColor = Color.WHITE;
         mTopOffset = BGAQRCodeUtil.dp2px(context, 90);
@@ -126,6 +144,9 @@ public class ScanBoxView extends View {
         mIsOnlyDecodeScanBoxArea = false;
         mIsShowLocationPoint = false;
         mIsAutoZoom = false;
+
+        mCornerPath = new Path();
+        mXfermode = new PorterDuffXfermode(PorterDuff.Mode.CLEAR);
     }
 
     void init(QRCodeView qrCodeView, AttributeSet attrs) {
@@ -148,6 +169,12 @@ public class ScanBoxView extends View {
             mCornerSize = typedArray.getDimensionPixelSize(attr, mCornerSize);
         } else if (attr == R.styleable.QRCodeView_qrcv_cornerLength) {
             mCornerLength = typedArray.getDimensionPixelSize(attr, mCornerLength);
+        } else if (attr == R.styleable.QRCodeView_qrcv_borderCornerRadius) {
+            mBorderCornerRadius = typedArray.getDimensionPixelSize(attr, mBorderCornerRadius);
+        } else if (attr == R.styleable.QRCodeView_qrcv_maskCornerRadius) {
+            mMaskCornerRadius = typedArray.getDimensionPixelSize(attr, mMaskCornerRadius);
+        } else if (attr == R.styleable.QRCodeView_qrcv_maskPadding) {
+            mMaskPadding = typedArray.getDimensionPixelSize(attr, mMaskPadding);
         } else if (attr == R.styleable.QRCodeView_qrcv_scanLineSize) {
             mScanLineSize = typedArray.getDimensionPixelSize(attr, mScanLineSize);
         } else if (attr == R.styleable.QRCodeView_qrcv_rectWidth) {
@@ -242,6 +269,8 @@ public class ScanBoxView extends View {
         mTipPaint.setColor(mTipTextColor);
 
         setIsBarcode(mIsBarcode);
+
+        setBorderCornerRadius(mBorderCornerRadius);
     }
 
     @Override
@@ -270,19 +299,47 @@ public class ScanBoxView extends View {
     }
 
     /**
+     * 圆角矩形框遮罩
+     *
+     * @param canvas
+     * @author wragony
+     */
+    private void drawRoundRectMask(Canvas canvas) {
+        int width = canvas.getWidth();
+        int height = canvas.getHeight();
+        if (mMaskColor != Color.TRANSPARENT) {
+            int layerId = canvas.saveLayer(0f, 0f, width, height, null, Canvas.ALL_SAVE_FLAG);
+            canvas.drawColor(mMaskColor);
+            mPaint.setXfermode(mXfermode);
+            RectF mRoundRect = new RectF(mFramingRect.left + mHalfCornerSize + mMaskPadding,
+                    mFramingRect.top + mHalfCornerSize + mMaskPadding,
+                    mFramingRect.right - mHalfCornerSize - mMaskPadding,
+                    mFramingRect.bottom - mHalfCornerSize - mMaskPadding);
+            canvas.drawRoundRect(mRoundRect, mMaskCornerRadius, mMaskCornerRadius, mPaint);
+
+            mPaint.setXfermode(null);
+            canvas.restoreToCount(layerId);
+        }
+    }
+
+    /**
      * 画遮罩层
      */
     private void drawMask(Canvas canvas) {
-        int width = canvas.getWidth();
-        int height = canvas.getHeight();
+        if (mMaskCornerRadius > 0) {
+            drawRoundRectMask(canvas);
+        } else {
+            int width = canvas.getWidth();
+            int height = canvas.getHeight();
 
-        if (mMaskColor != Color.TRANSPARENT) {
-            mPaint.setStyle(Paint.Style.FILL);
-            mPaint.setColor(mMaskColor);
-            canvas.drawRect(0, 0, width, mFramingRect.top, mPaint);
-            canvas.drawRect(0, mFramingRect.top, mFramingRect.left, mFramingRect.bottom + 1, mPaint);
-            canvas.drawRect(mFramingRect.right + 1, mFramingRect.top, width, mFramingRect.bottom + 1, mPaint);
-            canvas.drawRect(0, mFramingRect.bottom + 1, width, height, mPaint);
+            if (mMaskColor != Color.TRANSPARENT) {
+                mPaint.setStyle(Paint.Style.FILL);
+                mPaint.setColor(mMaskColor);
+                canvas.drawRect(0, 0, width, mFramingRect.top, mPaint);
+                canvas.drawRect(0, mFramingRect.top, mFramingRect.left, mFramingRect.bottom + 1, mPaint);
+                canvas.drawRect(mFramingRect.right + 1, mFramingRect.top, width, mFramingRect.bottom + 1, mPaint);
+                canvas.drawRect(0, mFramingRect.bottom + 1, width, height, mPaint);
+            }
         }
     }
 
@@ -294,6 +351,7 @@ public class ScanBoxView extends View {
             mPaint.setStyle(Paint.Style.STROKE);
             mPaint.setColor(mBorderColor);
             mPaint.setStrokeWidth(mBorderSize);
+            mPaint.setPathEffect(null);
             canvas.drawRect(mFramingRect, mPaint);
         }
     }
@@ -306,42 +364,75 @@ public class ScanBoxView extends View {
             mPaint.setStyle(Paint.Style.STROKE);
             mPaint.setColor(mCornerColor);
             mPaint.setStrokeWidth(mCornerSize);
-            if (mCornerDisplayType == 1) {
-                canvas.drawLine(mFramingRect.left - mHalfCornerSize, mFramingRect.top, mFramingRect.left - mHalfCornerSize + mCornerLength, mFramingRect.top,
-                        mPaint);
-                canvas.drawLine(mFramingRect.left, mFramingRect.top - mHalfCornerSize, mFramingRect.left, mFramingRect.top - mHalfCornerSize + mCornerLength,
-                        mPaint);
-                canvas.drawLine(mFramingRect.right + mHalfCornerSize, mFramingRect.top, mFramingRect.right + mHalfCornerSize - mCornerLength, mFramingRect.top,
-                        mPaint);
-                canvas.drawLine(mFramingRect.right, mFramingRect.top - mHalfCornerSize, mFramingRect.right, mFramingRect.top - mHalfCornerSize + mCornerLength,
-                        mPaint);
 
-                canvas.drawLine(mFramingRect.left - mHalfCornerSize, mFramingRect.bottom, mFramingRect.left - mHalfCornerSize + mCornerLength,
-                        mFramingRect.bottom, mPaint);
-                canvas.drawLine(mFramingRect.left, mFramingRect.bottom + mHalfCornerSize, mFramingRect.left,
-                        mFramingRect.bottom + mHalfCornerSize - mCornerLength, mPaint);
-                canvas.drawLine(mFramingRect.right + mHalfCornerSize, mFramingRect.bottom, mFramingRect.right + mHalfCornerSize - mCornerLength,
-                        mFramingRect.bottom, mPaint);
-                canvas.drawLine(mFramingRect.right, mFramingRect.bottom + mHalfCornerSize, mFramingRect.right,
-                        mFramingRect.bottom + mHalfCornerSize - mCornerLength, mPaint);
-            } else if (mCornerDisplayType == 2) {
-                canvas.drawLine(mFramingRect.left, mFramingRect.top + mHalfCornerSize, mFramingRect.left + mCornerLength, mFramingRect.top + mHalfCornerSize,
-                        mPaint);
-                canvas.drawLine(mFramingRect.left + mHalfCornerSize, mFramingRect.top, mFramingRect.left + mHalfCornerSize, mFramingRect.top + mCornerLength,
-                        mPaint);
-                canvas.drawLine(mFramingRect.right, mFramingRect.top + mHalfCornerSize, mFramingRect.right - mCornerLength, mFramingRect.top + mHalfCornerSize,
-                        mPaint);
-                canvas.drawLine(mFramingRect.right - mHalfCornerSize, mFramingRect.top, mFramingRect.right - mHalfCornerSize, mFramingRect.top + mCornerLength,
-                        mPaint);
+            if (mBorderCornerRadius > 0) {
+                // 画圆角 wragony
+                mPaint.setPathEffect(mCornerPathEffect);
 
-                canvas.drawLine(mFramingRect.left, mFramingRect.bottom - mHalfCornerSize, mFramingRect.left + mCornerLength,
-                        mFramingRect.bottom - mHalfCornerSize, mPaint);
-                canvas.drawLine(mFramingRect.left + mHalfCornerSize, mFramingRect.bottom, mFramingRect.left + mHalfCornerSize,
-                        mFramingRect.bottom - mCornerLength, mPaint);
-                canvas.drawLine(mFramingRect.right, mFramingRect.bottom - mHalfCornerSize, mFramingRect.right - mCornerLength,
-                        mFramingRect.bottom - mHalfCornerSize, mPaint);
-                canvas.drawLine(mFramingRect.right - mHalfCornerSize, mFramingRect.bottom, mFramingRect.right - mHalfCornerSize,
-                        mFramingRect.bottom - mCornerLength, mPaint);
+                // 左上角
+                mCornerPath.moveTo(mFramingRect.left - mHalfCornerSize / 2 + mCornerLength, mFramingRect.top);
+                mCornerPath.lineTo(mFramingRect.left - mHalfCornerSize / 2, mFramingRect.top);
+                mCornerPath.lineTo(mFramingRect.left - mHalfCornerSize / 2, mFramingRect.top - mHalfCornerSize + mCornerLength);
+
+                // 右上角
+                mCornerPath.moveTo(mFramingRect.right + mHalfCornerSize / 2 - mCornerLength, mFramingRect.top);
+                mCornerPath.lineTo(mFramingRect.right + mHalfCornerSize / 2, mFramingRect.top);
+                mCornerPath.lineTo(mFramingRect.right + mHalfCornerSize / 2, mFramingRect.top - mHalfCornerSize + mCornerLength);
+
+                // 左下角
+                mCornerPath.moveTo(mFramingRect.left - mHalfCornerSize / 2, mFramingRect.bottom + mHalfCornerSize - mCornerLength);
+                mCornerPath.lineTo(mFramingRect.left - mHalfCornerSize / 2, mFramingRect.bottom);
+                mCornerPath.lineTo(mFramingRect.left - mHalfCornerSize / 2 + mCornerLength, mFramingRect.bottom);
+
+                // 右下角
+                mCornerPath.moveTo(mFramingRect.right + mHalfCornerSize / 2 - mCornerLength, mFramingRect.bottom);
+                mCornerPath.lineTo(mFramingRect.right + mHalfCornerSize / 2, mFramingRect.bottom);
+                mCornerPath.lineTo(mFramingRect.right + mHalfCornerSize / 2, mFramingRect.bottom + mHalfCornerSize - mCornerLength);
+
+                canvas.drawPath(mCornerPath, mPaint);
+
+            } else {
+
+                mPaint.setPathEffect(null);
+
+                if (mCornerDisplayType == 1) {
+                    canvas.drawLine(mFramingRect.left - mHalfCornerSize, mFramingRect.top, mFramingRect.left - mHalfCornerSize + mCornerLength, mFramingRect.top,
+                            mPaint);
+                    canvas.drawLine(mFramingRect.left, mFramingRect.top - mHalfCornerSize, mFramingRect.left, mFramingRect.top - mHalfCornerSize + mCornerLength,
+                            mPaint);
+                    canvas.drawLine(mFramingRect.right + mHalfCornerSize, mFramingRect.top, mFramingRect.right + mHalfCornerSize - mCornerLength, mFramingRect.top,
+                            mPaint);
+                    canvas.drawLine(mFramingRect.right, mFramingRect.top - mHalfCornerSize, mFramingRect.right, mFramingRect.top - mHalfCornerSize + mCornerLength,
+                            mPaint);
+
+                    canvas.drawLine(mFramingRect.left - mHalfCornerSize, mFramingRect.bottom, mFramingRect.left - mHalfCornerSize + mCornerLength,
+                            mFramingRect.bottom, mPaint);
+                    canvas.drawLine(mFramingRect.left, mFramingRect.bottom + mHalfCornerSize, mFramingRect.left,
+                            mFramingRect.bottom + mHalfCornerSize - mCornerLength, mPaint);
+                    canvas.drawLine(mFramingRect.right + mHalfCornerSize, mFramingRect.bottom, mFramingRect.right + mHalfCornerSize - mCornerLength,
+                            mFramingRect.bottom, mPaint);
+                    canvas.drawLine(mFramingRect.right, mFramingRect.bottom + mHalfCornerSize, mFramingRect.right,
+                            mFramingRect.bottom + mHalfCornerSize - mCornerLength, mPaint);
+                } else if (mCornerDisplayType == 2) {
+                    canvas.drawLine(mFramingRect.left, mFramingRect.top + mHalfCornerSize, mFramingRect.left + mCornerLength, mFramingRect.top + mHalfCornerSize,
+                            mPaint);
+                    canvas.drawLine(mFramingRect.left + mHalfCornerSize, mFramingRect.top, mFramingRect.left + mHalfCornerSize, mFramingRect.top + mCornerLength,
+                            mPaint);
+                    canvas.drawLine(mFramingRect.right, mFramingRect.top + mHalfCornerSize, mFramingRect.right - mCornerLength, mFramingRect.top + mHalfCornerSize,
+                            mPaint);
+                    canvas.drawLine(mFramingRect.right - mHalfCornerSize, mFramingRect.top, mFramingRect.right - mHalfCornerSize, mFramingRect.top + mCornerLength,
+                            mPaint);
+
+                    canvas.drawLine(mFramingRect.left, mFramingRect.bottom - mHalfCornerSize, mFramingRect.left + mCornerLength,
+                            mFramingRect.bottom - mHalfCornerSize, mPaint);
+                    canvas.drawLine(mFramingRect.left + mHalfCornerSize, mFramingRect.bottom, mFramingRect.left + mHalfCornerSize,
+                            mFramingRect.bottom - mCornerLength, mPaint);
+                    canvas.drawLine(mFramingRect.right, mFramingRect.bottom - mHalfCornerSize, mFramingRect.right - mCornerLength,
+                            mFramingRect.bottom - mHalfCornerSize, mPaint);
+                    canvas.drawLine(mFramingRect.right - mHalfCornerSize, mFramingRect.bottom, mFramingRect.right - mHalfCornerSize,
+                            mFramingRect.bottom - mCornerLength, mPaint);
+                }
+
             }
         }
     }
@@ -350,6 +441,7 @@ public class ScanBoxView extends View {
      * 画扫描线
      */
     private void drawScanLine(Canvas canvas) {
+        mPaint.setPathEffect(null);
         if (mIsBarcode) {
             if (mGridScanLineBitmap != null) {
                 RectF dstGridRectF = new RectF(mFramingRect.left + mHalfCornerSize + 0.5f, mFramingRect.top + mHalfCornerSize + mScanLineMargin,
@@ -405,6 +497,7 @@ public class ScanBoxView extends View {
      * 画提示文本
      */
     private void drawTipText(Canvas canvas) {
+        mPaint.setPathEffect(null);
         if (TextUtils.isEmpty(mTipText) || mTipTextSl == null) {
             return;
         }
@@ -472,6 +565,7 @@ public class ScanBoxView extends View {
      * 移动扫描线的位置
      */
     private void moveScanLine() {
+        mPaint.setPathEffect(null);
         if (mIsBarcode) {
             if (mGridScanLineBitmap == null) {
                 // 处理非网格扫描图片的情况
@@ -661,6 +755,40 @@ public class ScanBoxView extends View {
 
     public void setCornerSize(int cornerSize) {
         mCornerSize = cornerSize;
+        refreshScanBox();
+    }
+
+    /**
+     * 设置扫描框四角的圆角
+     *
+     * @param cornerRadius
+     * @author wragony
+     */
+    public void setBorderCornerRadius(int cornerRadius) {
+        mBorderCornerRadius = BGAQRCodeUtil.dp2px(getContext(), cornerRadius);
+        mCornerPathEffect = new CornerPathEffect(mBorderCornerRadius);
+        refreshScanBox();
+    }
+
+    /**
+     * 设置遮罩内边框的圆角
+     *
+     * @param cornerRadius
+     * @author wragony
+     */
+    public void setMaskCornerRadius(int cornerRadius) {
+        mMaskCornerRadius = BGAQRCodeUtil.dp2px(getContext(), cornerRadius);
+        refreshScanBox();
+    }
+
+    /**
+     * 设置遮罩内边框距离扫描框的padding
+     *
+     * @param mPadding
+     * @author wragony
+     */
+    public void setMaskPadding(int mPadding) {
+        mMaskPadding = BGAQRCodeUtil.dp2px(getContext(), mPadding);
         refreshScanBox();
     }
 
