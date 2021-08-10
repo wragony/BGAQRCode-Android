@@ -61,14 +61,15 @@
 
 ```groovy
 dependencies {
-    implementation 'com.github.bingoogolapple.BGAQRCode-Android:zxing:latestVersion'
+    implementation 'com.github.wragony.BGAQRCode-Android:qrcodecore:latestVersion'
+    implementation 'com.github.wragony.BGAQRCode-Android:zxing:latestVersion'
 }
 ```
 >ZBar
 
 ```groovy
 dependencies {
-    implementation 'com.github.bingoogolapple.BGAQRCode-Android:zbar:latestVersion'
+    implementation 'com.github.wragony.BGAQRCode-Android:zbar:latestVersion'
 }
 ```
 ## 布局文件
