@@ -310,6 +310,7 @@ public class ScanBoxView extends View {
             int layerId = canvas.saveLayer(0f, 0f, width, height, null, Canvas.ALL_SAVE_FLAG);
             canvas.drawColor(mMaskColor);
             mPaint.setXfermode(mXfermode);
+            mPaint.setStyle(Paint.Style.FILL);
             RectF mRoundRect = new RectF(mFramingRect.left + mHalfCornerSize + mMaskPadding,
                     mFramingRect.top + mHalfCornerSize + mMaskPadding,
                     mFramingRect.right - mHalfCornerSize - mMaskPadding,
